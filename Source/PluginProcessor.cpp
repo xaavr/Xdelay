@@ -166,7 +166,8 @@ bool XdelayAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* XdelayAudioProcessor::createEditor()
 {
-    return new XdelayAudioProcessorEditor (*this);
+    //return new XdelayAudioProcessorEditor (*this);
+    return new juce::GenericAudioProcessorEditor(*this);
 }
 
 //==============================================================================
@@ -182,7 +183,26 @@ void XdelayAudioProcessor::setStateInformation (const void* data, int sizeInByte
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
 }
+juce::AudioProcessorValueTreeState::ParameterLayout XdelayAudioProcessor::createParameterLayout()
+{
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Wet", "Wet", 
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.5f, 1.0f), 100));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Dry", "Dry", 
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.5f, 1.0f), 100));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Feedback", "Feedback",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.5f, 1.0f), 100));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Timing", "Timing",
+        juce::NormalisableRange<float>(0.0f, 32.0f, 0.5f, 1.0f), 100));
+
+    layout.add(std::make_unique<juce::AudioParameterBool>("Bypass", "Bypass", false));
+
+    return layout;
+}
 //==============================================================================
 // This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
