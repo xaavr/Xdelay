@@ -9,6 +9,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <juce_data_structures/juce_data_structures.h>
 
 //==============================================================================
 /**
@@ -29,6 +30,8 @@ public:
    #endif
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void writeToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer);
+    void XdelayAudioProcessor::readToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer);
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
@@ -56,10 +59,17 @@ public:
     static juce::AudioProcessorValueTreeState::ParameterLayout
         createParameterLayout();
 
-	juce::AudioProcessorValueTreeState avpts{
+	juce::AudioProcessorValueTreeState avpts {
 		*this, NULL, "Parameters", createParameterLayout()
     };
 private:
+    juce::AudioBuffer<float> delayBuffer;
+    int writePosition{ 0 };
+    int delayBufferSize = 0;
+
+    // Other necessary variables like sample rate, delay time, etc.
+    double sampleRate = 44100.0;
+    float delayTime = 1.0f;
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (XdelayAudioProcessor)
 };

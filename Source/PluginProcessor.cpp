@@ -9,6 +9,8 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+
+
 //==============================================================================
 XdelayAudioProcessor::XdelayAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
@@ -95,6 +97,11 @@ void XdelayAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
+    this->sampleRate = sampleRate;
+    delayBufferSize = static_cast<int>(sampleRate * 2.0); // 2 seconds buffer
+    delayBuffer.setSize(getTotalNumInputChannels(), delayBufferSize);
+    delayBuffer.clear();
+    writePosition = 0;
 }
 
 void XdelayAudioProcessor::releaseResources()
@@ -134,7 +141,7 @@ void XdelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
-
+    auto bufferSize = buffer.getNumSamples();
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
     // guaranteed to be empty - they may contain garbage).
@@ -150,15 +157,61 @@ void XdelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     // the samples and the outer loop is handling the channels.
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
+    
+    //auto delayBufferSize = delayBuffer.getNumSamples();
+
+    
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {
-        auto* channelData = buffer.getWritePointer (channel);
+        
+        writeToDelayBuffer(channel, bufferSize, buffer);
+        readToDelayBuffer(channel, bufferSize, buffer);
+        writeToDelayBuffer(channel, bufferSize, buffer);
+        
+    }
+    writePosition += bufferSize;
+    writePosition %= delayBufferSize;
+    
+}
 
-        // ..do something to the data...
+void XdelayAudioProcessor::writeToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer)
+{
+    auto* channelData = buffer.getWritePointer(channel);
+    if (delayBufferSize >= bufferSize + writePosition)
+    {
+        delayBuffer.copyFrom(channel, writePosition, channelData, bufferSize);
+    }
+    else
+    {
+        auto numSamplesToEnd = delayBufferSize - writePosition;
+        delayBuffer.copyFrom(channel, writePosition, channelData, numSamplesToEnd);
+        delayBuffer.copyFrom(channel, 0, channelData + numSamplesToEnd, bufferSize - numSamplesToEnd);
     }
 }
 
-//==============================================================================
+void XdelayAudioProcessor::readToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer)
+{
+   
+    auto delayTimeSamples = static_cast<int>(delayTime * sampleRate);
+    auto readPosition = writePosition - delayTimeSamples;
+    auto g = 0.2f;
+    if (readPosition < 0)
+        readPosition += delayBufferSize;
+
+    if (readPosition + bufferSize < delayBufferSize)
+    {
+        buffer.addFromWithRamp(channel, 0, delayBuffer.getReadPointer(channel, readPosition), bufferSize, g, g);
+    }
+    else
+    {
+        auto numSamplesToEnd = delayBufferSize - readPosition;
+        buffer.addFromWithRamp(channel, 0, delayBuffer.getReadPointer(channel, readPosition), numSamplesToEnd, g, g);
+        auto numSamplesToStart = bufferSize - numSamplesToEnd;
+        buffer.addFromWithRamp(channel, numSamplesToEnd, delayBuffer.getReadPointer(channel, 0), numSamplesToStart, g, g);
+    }
+}
+
+//==================s============================================================
 bool XdelayAudioProcessor::hasEditor() const
 {
     return true; // (change this to false if you choose to not supply an editor)
@@ -176,30 +229,39 @@ void XdelayAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
+    juce::MemoryOutputStream stream(destData, true);
+    avpts.state.writeToStream(stream);
 }
 
 void XdelayAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
-}
+    juce::MemoryInputStream stream(data, static_cast<size_t> (sizeInBytes), false);
+    juce::ValueTree tree = juce::ValueTree::readFromStream(stream);
+
+    if (tree.isValid())
+    {
+        avpts.state = tree;
+    }
+}   
 juce::AudioProcessorValueTreeState::ParameterLayout XdelayAudioProcessor::createParameterLayout()
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    layout.add(std::make_unique<juce::AudioParameterFloat>("Wet", "Wet", 
+    layout.add(std::make_unique<juce::AudioParameterFloat>("wet", "Wet", 
         juce::NormalisableRange<float>(0.0f, 100.0f, 0.5f, 1.0f), 100));
 
-    layout.add(std::make_unique<juce::AudioParameterFloat>("Dry", "Dry", 
+    layout.add(std::make_unique<juce::AudioParameterFloat>("dry", "Dry", 
         juce::NormalisableRange<float>(0.0f, 100.0f, 0.5f, 1.0f), 100));
 
-    layout.add(std::make_unique<juce::AudioParameterFloat>("Feedback", "Feedback",
+    layout.add(std::make_unique<juce::AudioParameterFloat>("feedback", "Feedback",
         juce::NormalisableRange<float>(0.0f, 100.0f, 0.5f, 1.0f), 100));
 
-    layout.add(std::make_unique<juce::AudioParameterFloat>("Timing", "Timing",
+    layout.add(std::make_unique<juce::AudioParameterFloat>("timing", "Timing",
         juce::NormalisableRange<float>(0.0f, 32.0f, 0.5f, 1.0f), 100));
 
-    layout.add(std::make_unique<juce::AudioParameterBool>("Bypass", "Bypass", false));
+    layout.add(std::make_unique<juce::AudioParameterBool>("bypass", "Bypass", false));
 
     return layout;
 }
