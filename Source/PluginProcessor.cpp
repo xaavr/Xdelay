@@ -21,7 +21,7 @@ XdelayAudioProcessor::XdelayAudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ), avpts(*this, NULL, "Parameters", createParameterLayout())
 #endif
 {
 }
@@ -102,6 +102,9 @@ void XdelayAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     delayBuffer.setSize(getTotalNumInputChannels(), delayBufferSize);
     delayBuffer.clear();
     writePosition = 0;
+
+    feedback.reset(sampleRate, 0.0005);
+
 }
 
 void XdelayAudioProcessor::releaseResources()
@@ -159,7 +162,10 @@ void XdelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     // interleaved by keeping the same state.
     
     //auto delayBufferSize = delayBuffer.getNumSamples();
+    auto f = avpts.getRawParameterValue("FEEDBACK")->load();
+    feedback.setTargetValue(f);
 
+    DBG("Feedback: " << feedback.getNextValue());
     
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {
@@ -194,7 +200,7 @@ void XdelayAudioProcessor::readToDelayBuffer(int channel, int bufferSize, juce::
    
     auto delayTimeSamples = static_cast<int>(delayTime * sampleRate);
     auto readPosition = writePosition - delayTimeSamples;
-    auto g = 0.2f;
+    auto g = avpts.getRawParameterValue("FEEDBACK")->load();
     if (readPosition < 0)
         readPosition += delayBufferSize;
 
@@ -247,7 +253,7 @@ void XdelayAudioProcessor::setStateInformation (const void* data, int sizeInByte
 }   
 juce::AudioProcessorValueTreeState::ParameterLayout XdelayAudioProcessor::createParameterLayout()
 {
-    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+    /*juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
     layout.add(std::make_unique<juce::AudioParameterFloat>("wet", "Wet", 
         juce::NormalisableRange<float>(0.0f, 100.0f, 0.5f, 1.0f), 100));
@@ -263,7 +269,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout XdelayAudioProcessor::create
 
     layout.add(std::make_unique<juce::AudioParameterBool>("bypass", "Bypass", false));
 
-    return layout;
+    return layout;*/
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("FEEDBACK", "Feedback", 0.0f, 1.0f, 0.3));
+
+
+    return { params.begin(), params.end() };
 }
 //==============================================================================
 // This creates new instances of the plugin..

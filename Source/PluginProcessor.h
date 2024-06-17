@@ -55,19 +55,14 @@ public:
     //==============================================================================
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
-    
-    static juce::AudioProcessorValueTreeState::ParameterLayout
-        createParameterLayout();
 
-	juce::AudioProcessorValueTreeState avpts {
-		*this, NULL, "Parameters", createParameterLayout()
-    };
+    juce::AudioProcessorValueTreeState avpts;
 private:
-    juce::AudioBuffer<float> delayBuffer;
+    juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    juce::LinearSmoothedValue<float> feedback{ 0.0f };
+	juce::AudioBuffer<float> delayBuffer;
     int writePosition{ 0 };
     int delayBufferSize = 0;
-
-    // Other necessary variables like sample rate, delay time, etc.
     double sampleRate = 44100.0;
     float delayTime = 1.0f;
     //==============================================================================
