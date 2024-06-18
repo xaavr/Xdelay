@@ -153,7 +153,6 @@ void XdelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     
     //auto delayBufferSize = delayBuffer.getNumSamples();
     auto f = avpts.getRawParameterValue("FEEDBACK")->load();
-    f /= 1000.0f;
     feedback.setTargetValue(f);
 
     auto d = avpts.getRawParameterValue("TIMING");
@@ -269,7 +268,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout XdelayAudioProcessor::create
 
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
     params.push_back(std::make_unique<juce::AudioParameterFloat>("FEEDBACK", "Feedback", 0.0f, 1.0f, 0.3f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>("TIMING", "Timing", juce::NormalisableRange<float>(0.0f, 10.0f, 0.1f, 0.6f), 3.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("TIMING", "Timing", juce::NormalisableRange<float>(0.0f, 10.0f, 0.1f, 0.6f), 0.5f));
 
     return { params.begin(), params.end() };
 }
