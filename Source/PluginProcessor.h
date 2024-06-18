@@ -32,6 +32,7 @@ public:
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     void writeToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer);
     void XdelayAudioProcessor::readToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer);
+    void XdelayAudioProcessor::writeFeedbackToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer);
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
@@ -60,11 +61,13 @@ public:
 private:
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     juce::LinearSmoothedValue<float> feedback{ 0.0f };
+    juce::LinearSmoothedValue<float> delayTime { 1.0f };
 	juce::AudioBuffer<float> delayBuffer;
     int writePosition{ 0 };
     int delayBufferSize = 0;
     double sampleRate = 44100.0;
-    float delayTime = 1.0f;
+    //float delayTime = 1.0f;
+    double bpm = 120.0;
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (XdelayAudioProcessor)
 };

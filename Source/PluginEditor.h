@@ -25,9 +25,16 @@ public:
     void resized() override;
 
 private:
-    // This reference is provided as a quick way for your editor to
-    // access the processor object that created it.
+    
     XdelayAudioProcessor& audioProcessor;
+    juce::Slider feedbackSlider;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> feedbackAttachment;
+
+    juce::Slider timingSlider;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> timingAttachment;
+
+    juce::Label feedbackLabel;
+    juce::Label timingLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (XdelayAudioProcessorEditor)
 };

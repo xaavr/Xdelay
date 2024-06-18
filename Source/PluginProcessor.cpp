@@ -98,11 +98,12 @@ void XdelayAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
     this->sampleRate = sampleRate;
-    delayBufferSize = static_cast<int>(sampleRate * 2.0); // 2 seconds buffer
+    delayBufferSize = static_cast<int>(sampleRate * 32.0); // 2 seconds buffer
     delayBuffer.setSize(getTotalNumInputChannels(), delayBufferSize);
     delayBuffer.clear();
     writePosition = 0;
 
+    delayTime.reset(sampleRate, 0.005);
     feedback.reset(sampleRate, 0.0005);
 
 }
@@ -145,34 +146,30 @@ void XdelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
     auto bufferSize = buffer.getNumSamples();
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
+    
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
     
     //auto delayBufferSize = delayBuffer.getNumSamples();
     auto f = avpts.getRawParameterValue("FEEDBACK")->load();
+    f /= 1000.0f;
     feedback.setTargetValue(f);
 
-    DBG("Feedback: " << feedback.getNextValue());
+    auto d = avpts.getRawParameterValue("TIMING");
+    delayTime.setTargetValue(*d);
     
+
+    //DBG("Feedback: " << feedback.getNextValue());
+    DBG("Delay: " << delayTime.getNextValue());
+
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {
         
         writeToDelayBuffer(channel, bufferSize, buffer);
         readToDelayBuffer(channel, bufferSize, buffer);
-        writeToDelayBuffer(channel, bufferSize, buffer);
+        //writeToDelayBuffer(channel, bufferSize, buffer);
+        writeFeedbackToDelayBuffer(channel, bufferSize, buffer);
         
     }
     writePosition += bufferSize;
@@ -197,10 +194,12 @@ void XdelayAudioProcessor::writeToDelayBuffer(int channel, int bufferSize, juce:
 
 void XdelayAudioProcessor::readToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer)
 {
-   
-    auto delayTimeSamples = static_cast<int>(delayTime * sampleRate);
+	
+    auto delayTimeSamples = static_cast<int>(delayTime.getNextValue() * sampleRate);
     auto readPosition = writePosition - delayTimeSamples;
-    auto g = avpts.getRawParameterValue("FEEDBACK")->load();
+    auto g = feedback.getNextValue();
+
+
     if (readPosition < 0)
         readPosition += delayBufferSize;
 
@@ -217,6 +216,20 @@ void XdelayAudioProcessor::readToDelayBuffer(int channel, int bufferSize, juce::
     }
 }
 
+void XdelayAudioProcessor::writeFeedbackToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer)
+{
+    auto* delayData = delayBuffer.getWritePointer(channel);
+    auto* bufferData = buffer.getWritePointer(channel);
+    auto feedbackAmount = feedback.getNextValue();
+
+    for (int i = 0; i < bufferSize; ++i)
+    {
+        int delayIndex = (writePosition + i) % delayBufferSize;
+        delayData[delayIndex] += bufferData[i] * feedbackAmount;
+    }
+}
+
+
 //==================s============================================================
 bool XdelayAudioProcessor::hasEditor() const
 {
@@ -226,7 +239,7 @@ bool XdelayAudioProcessor::hasEditor() const
 juce::AudioProcessorEditor* XdelayAudioProcessor::createEditor()
 {
     //return new XdelayAudioProcessorEditor (*this);
-    return new juce::GenericAudioProcessorEditor(*this);
+    return new XdelayAudioProcessorEditor(*this);
 }
 
 //==============================================================================
@@ -253,26 +266,10 @@ void XdelayAudioProcessor::setStateInformation (const void* data, int sizeInByte
 }   
 juce::AudioProcessorValueTreeState::ParameterLayout XdelayAudioProcessor::createParameterLayout()
 {
-    /*juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    layout.add(std::make_unique<juce::AudioParameterFloat>("wet", "Wet", 
-        juce::NormalisableRange<float>(0.0f, 100.0f, 0.5f, 1.0f), 100));
-
-    layout.add(std::make_unique<juce::AudioParameterFloat>("dry", "Dry", 
-        juce::NormalisableRange<float>(0.0f, 100.0f, 0.5f, 1.0f), 100));
-
-    layout.add(std::make_unique<juce::AudioParameterFloat>("feedback", "Feedback",
-        juce::NormalisableRange<float>(0.0f, 100.0f, 0.5f, 1.0f), 100));
-
-    layout.add(std::make_unique<juce::AudioParameterFloat>("timing", "Timing",
-        juce::NormalisableRange<float>(0.0f, 32.0f, 0.5f, 1.0f), 100));
-
-    layout.add(std::make_unique<juce::AudioParameterBool>("bypass", "Bypass", false));
-
-    return layout;*/
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
-    params.push_back(std::make_unique<juce::AudioParameterFloat>("FEEDBACK", "Feedback", 0.0f, 1.0f, 0.3));
-
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("FEEDBACK", "Feedback", 0.0f, 1.0f, 0.3f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("TIMING", "Timing", juce::NormalisableRange<float>(0.0f, 10.0f, 0.1f, 0.6f), 3.0f));
 
     return { params.begin(), params.end() };
 }
