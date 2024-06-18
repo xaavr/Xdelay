@@ -33,8 +33,12 @@ private:
     juce::Slider timingSlider;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> timingAttachment;
 
+    juce::Slider mixSlider;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttachment;
+
     juce::Label feedbackLabel;
     juce::Label timingLabel;
+    juce::Label mixLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (XdelayAudioProcessorEditor)
 };

@@ -61,8 +61,13 @@ public:
 private:
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     juce::LinearSmoothedValue<float> feedback{ 0.0f };
-    juce::LinearSmoothedValue<float> delayTime { 1.0f };
+    juce::LinearSmoothedValue<float> delayTime{ 1.0f };
+    juce::LinearSmoothedValue<float> mix{ 1.0f };
+
 	juce::AudioBuffer<float> delayBuffer;
+    juce::AudioBuffer <float> wetDryBuffer;
+
+
     int writePosition{ 0 };
     int delayBufferSize = 0;
     double sampleRate = 44100.0;

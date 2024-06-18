@@ -36,6 +36,17 @@ XdelayAudioProcessorEditor::XdelayAudioProcessorEditor (XdelayAudioProcessor& p)
     timingLabel.attachToComponent(&timingSlider, false);
     timingLabel.setJustificationType(juce::Justification::centred);
 
+    //Mix slider
+    addAndMakeVisible(mixSlider);
+    mixSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    mixSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
+    mixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(audioProcessor.avpts, "MIX", mixSlider);
+
+    //Mix label
+    mixLabel.setText("Mix", juce::dontSendNotification);
+    mixLabel.attachToComponent(&mixSlider, false);
+    mixLabel.setJustificationType(juce::Justification::centred);
+
 
 	setSize (400, 300);
 }
@@ -67,5 +78,7 @@ void XdelayAudioProcessorEditor::resized()
     feedbackSlider.setBounds(100, 75, 100, 100);
     
     timingSlider.setBounds(200, 75, 100, 100);
+
+    mixSlider.setBounds(150, 175, 100, 100);
     
 }

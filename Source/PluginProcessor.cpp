@@ -103,8 +103,11 @@ void XdelayAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     delayBuffer.clear();
     writePosition = 0;
 
+    wetDryBuffer.setSize(getTotalNumInputChannels(), static_cast<int>(sampleRate));
+
     delayTime.reset(sampleRate, 0.005);
     feedback.reset(sampleRate, 0.0005);
+    mix.reset(sampleRate, 0.005);
 
 }
 
@@ -155,8 +158,11 @@ void XdelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     auto f = avpts.getRawParameterValue("FEEDBACK")->load();
     feedback.setTargetValue(f);
 
-    auto d = avpts.getRawParameterValue("TIMING");
-    delayTime.setTargetValue(*d);
+    auto d = avpts.getRawParameterValue("TIMING")->load();
+    delayTime.setTargetValue(d);
+
+    mix = avpts.getRawParameterValue("MIX")->load();
+
     
 
     //DBG("Feedback: " << feedback.getNextValue());
@@ -164,11 +170,19 @@ void XdelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
 
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {
+
         
-        writeToDelayBuffer(channel, bufferSize, buffer);
-        readToDelayBuffer(channel, bufferSize, buffer);
-        //writeToDelayBuffer(channel, bufferSize, buffer);
-        writeFeedbackToDelayBuffer(channel, bufferSize, buffer);
+        wetDryBuffer.copyFrom(channel, 0, buffer, channel, 0, bufferSize);
+        
+        writeToDelayBuffer(channel, bufferSize, wetDryBuffer);
+        readToDelayBuffer(channel, bufferSize, wetDryBuffer);
+        writeFeedbackToDelayBuffer(channel, bufferSize, wetDryBuffer);
+
+
+        buffer.applyGain(channel, 0, bufferSize, 1.0f - mix.getNextValue());
+        wetDryBuffer.applyGain(channel, 0, bufferSize, mix.getNextValue());
+        buffer.addFrom(channel, 0, wetDryBuffer, channel, 0, bufferSize);
+        
         
     }
     writePosition += bufferSize;
@@ -267,9 +281,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout XdelayAudioProcessor::create
 {
 
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
-    params.push_back(std::make_unique<juce::AudioParameterFloat>("FEEDBACK", "Feedback", 0.0f, 1.0f, 0.3f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>("TIMING", "Timing", juce::NormalisableRange<float>(0.0f, 10.0f, 0.1f, 0.6f), 0.5f));
-
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("FEEDBACK", "Feedback", juce::NormalisableRange<float>(0.0f, 1.f, 0.01f), 0.3f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("TIMING", "Timing", juce::NormalisableRange<float>(0.0f, 10.0f, 0.001f, 0.3f), 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("MIX", "Mix", juce::NormalisableRange<float>(0.0f, 1.f, 0.01f), 1.0f));
+    
     return { params.begin(), params.end() };
 }
 //==============================================================================
