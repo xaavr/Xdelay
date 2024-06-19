@@ -104,6 +104,7 @@ void XdelayAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     writePosition = 0;
 
     wetDryBuffer.setSize(getTotalNumInputChannels(), static_cast<int>(sampleRate));
+    reverseBuffer.setSize(getTotalNumInputChannels(), delayBufferSize);
 
     delayTime.reset(sampleRate, 0.005);
     feedback.reset(sampleRate, 0.0005);
@@ -154,30 +155,36 @@ void XdelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         buffer.clear (i, 0, buffer.getNumSamples());
 
     
-    //auto delayBufferSize = delayBuffer.getNumSamples();
-    auto f = avpts.getRawParameterValue("FEEDBACK")->load();
-    feedback.setTargetValue(f);
+    //Set Parameter Values
+    auto feedbackValue = avpts.getRawParameterValue("FEEDBACK")->load();
+    feedback.setTargetValue(feedbackValue);
 
-    auto d = avpts.getRawParameterValue("TIMING")->load();
-    delayTime.setTargetValue(d);
+    auto timingValue = avpts.getRawParameterValue("TIMING")->load();
+    delayTime.setTargetValue(timingValue);
 
     mix = avpts.getRawParameterValue("MIX")->load();
 
-    
+    //Calculate delay time
+    processDelayTimeSamples(static_cast<bool>(avpts.getRawParameterValue("TEMPO_BASED")), timingValue);
 
     //DBG("Feedback: " << feedback.getNextValue());
-    DBG("Delay: " << delayTime.getNextValue());
+    //DBG("Delay: " << delayTime.getNextValue());
+    //DBG("BPM?" << avpts.getRawParameterValue("TEMPO_BASED")->load());
+    DBG("DTIS:" << delayTimeInSamples);
 
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {
 
         
         wetDryBuffer.copyFrom(channel, 0, buffer, channel, 0, bufferSize);
+
         
+
         writeToDelayBuffer(channel, bufferSize, wetDryBuffer);
-        readToDelayBuffer(channel, bufferSize, wetDryBuffer);
+        readFromDelayBuffer(channel, bufferSize, wetDryBuffer);
         writeFeedbackToDelayBuffer(channel, bufferSize, wetDryBuffer);
 
+        
 
         buffer.applyGain(channel, 0, bufferSize, 1.0f - mix.getNextValue());
         wetDryBuffer.applyGain(channel, 0, bufferSize, mix.getNextValue());
@@ -190,8 +197,34 @@ void XdelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     
 }
 
+void XdelayAudioProcessor::processDelayTimeSamples(bool tempoBased, float timingValue)
+{
+	if (tempoBased)
+	{
+		if (auto playHead = getPlayHead())
+		{
+            if (auto bpm = *playHead->getPosition()->getBpm())
+            
+                if (bpm > 0)
+                {
+						auto bps = bpm / 60.0;
+                    auto spb = 1.0 / bps; //seconds per beat
+                    auto noteDuration = spb * (timingValue);
+                    avpts.state.setProperty("TEMPO_BASED", true, nullptr);
+                    delayTimeInSamples = static_cast<int>(noteDuration * sampleRate);
+                }
+            }
+		}
+    else
+    {
+        delayTimeInSamples = static_cast<int>(timingValue * sampleRate);
+    }
+}
+
+
 void XdelayAudioProcessor::writeToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer)
 {
+    
     auto* channelData = buffer.getWritePointer(channel);
     if (delayBufferSize >= bufferSize + writePosition)
     {
@@ -205,13 +238,12 @@ void XdelayAudioProcessor::writeToDelayBuffer(int channel, int bufferSize, juce:
     }
 }
 
-void XdelayAudioProcessor::readToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer)
+void XdelayAudioProcessor::readFromDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer)
 {
 	
-    auto delayTimeSamples = static_cast<int>(delayTime.getNextValue() * sampleRate);
+    auto delayTimeSamples = delayTimeInSamples;
     auto readPosition = writePosition - delayTimeSamples;
     auto g = feedback.getNextValue();
-
 
     if (readPosition < 0)
         readPosition += delayBufferSize;
@@ -282,9 +314,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout XdelayAudioProcessor::create
 
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
     params.push_back(std::make_unique<juce::AudioParameterFloat>("FEEDBACK", "Feedback", juce::NormalisableRange<float>(0.0f, 1.f, 0.01f), 0.3f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>("TIMING", "Timing", juce::NormalisableRange<float>(0.0f, 10.0f, 0.001f, 0.3f), 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("TIMING", "Timing", 0.0f, 16.0f, 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("MIX", "Mix", juce::NormalisableRange<float>(0.0f, 1.f, 0.01f), 1.0f));
-    
+    params.push_back(std::make_unique<juce::AudioParameterBool>("TEMPO_BASED", "Tempo_Based", true));
     return { params.begin(), params.end() };
 }
 //==============================================================================

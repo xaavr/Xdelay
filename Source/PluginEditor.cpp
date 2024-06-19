@@ -47,8 +47,38 @@ XdelayAudioProcessorEditor::XdelayAudioProcessorEditor (XdelayAudioProcessor& p)
     mixLabel.attachToComponent(&mixSlider, false);
     mixLabel.setJustificationType(juce::Justification::centred);
 
+    // Tempo-based button
+    addAndMakeVisible(tempoBasedButton);
+    tempoBasedAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(audioProcessor.avpts, "TEMPO_BASED", tempoBasedButton);
+
+    // Tempo-based label
+    addAndMakeVisible(tempoBasedLabel);
+    tempoBasedLabel.setText("Tempo Based", juce::dontSendNotification);
+    tempoBasedLabel.attachToComponent(&tempoBasedButton, false);
+    tempoBasedLabel.setJustificationType(juce::Justification::centred);
+
 
 	setSize (400, 300);
+
+    tempoBasedButton.onClick = [this]()
+    {
+            updateTimingSlider();
+    };
+}
+
+void XdelayAudioProcessorEditor::updateTimingSlider()
+{
+   
+    if(tempoBasedButton.getToggleState())
+    {
+        //timingAttachment.reset();
+        timingSlider.setRange(0.0, 16.0, 1.0);
+    }
+    else
+    {
+        
+        timingSlider.setRange(0.0, 10.0, 0.001);
+    }
 }
 
 XdelayAudioProcessorEditor::~XdelayAudioProcessorEditor()
@@ -80,5 +110,8 @@ void XdelayAudioProcessorEditor::resized()
     timingSlider.setBounds(200, 75, 100, 100);
 
     mixSlider.setBounds(150, 175, 100, 100);
+
+    tempoBasedButton.setBounds(300, 75, 50, 20);
+
     
 }

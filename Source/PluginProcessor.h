@@ -30,9 +30,10 @@ public:
    #endif
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void processDelayTimeSamples(bool tempoBased, float timingValue);
     void writeToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer);
-    void XdelayAudioProcessor::readToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer);
-    void XdelayAudioProcessor::writeFeedbackToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer);
+    void readFromDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer);
+    void writeFeedbackToDelayBuffer(int channel, int bufferSize, juce::AudioBuffer<float>& buffer);
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
@@ -63,15 +64,17 @@ private:
     juce::LinearSmoothedValue<float> feedback{ 0.0f };
     juce::LinearSmoothedValue<float> delayTime{ 1.0f };
     juce::LinearSmoothedValue<float> mix{ 1.0f };
+    
 
 	juce::AudioBuffer<float> delayBuffer;
     juce::AudioBuffer <float> wetDryBuffer;
+    juce::AudioBuffer<float> reverseBuffer;
 
 
     int writePosition{ 0 };
     int delayBufferSize = 0;
+    int delayTimeInSamples = 0;
     double sampleRate = 44100.0;
-    //float delayTime = 1.0f;
     double bpm = 120.0;
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (XdelayAudioProcessor)
